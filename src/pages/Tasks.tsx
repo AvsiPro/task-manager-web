@@ -1,83 +1,101 @@
-import { useEffect, useState } from 'react'
-import api from '../services/api'
+import { useEffect, useState } from "react";
+import axios from "axios";
 
-type Task = {
-  id: number
-  title: string
-  done: boolean
+interface Task {
+  id: number;
+  title: string;
+  description: string;
 }
 
 export default function Tasks() {
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [newTitle, setNewTitle] = useState('')
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
 
-  const loadTasks = () => {
-    api.get('/tasks').then(res => setTasks(res.data))
-  }
+  const fetchTasks = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const response = await axios.get("http://localhost:3000/tasks", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setTasks(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar tarefas", error);
+    }
+  };
 
   useEffect(() => {
-    loadTasks()
-  }, [])
+    fetchTasks();
+  }, []);
 
-  const addTask = async () => {
-    if (!newTitle.trim()) return
-    await api.post('/tasks', { title: newTitle })
-    setNewTitle('')
-    loadTasks()
-  }
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
-  const toggleDone = async (task: Task) => {
-    await api.patch(`/tasks/${task.id}`, { done: !task.done })
-    loadTasks()
-  }
-
-  const deleteTask = async (id: number) => {
-    await api.delete(`/tasks/${id}`)
-    loadTasks()
-  }
+    try {
+      await axios.post(
+        "http://localhost:3000/tasks",
+        { title, description },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      setTitle("");
+      setDescription("");
+      fetchTasks();
+    } catch (error) {
+      console.error("Erro ao adicionar tarefa", error);
+    }
+  };
 
   return (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-      <h2 className="text-2xl font-bold mb-6 text-center">Minhas Tarefas</h2>
+    <div className="flex flex-col items-center justify-start min-h-screen bg-gray-100 p-4">
+      <h1 className="text-xl font-semibold mb-4">Minhas Tarefas</h1>
 
-      <div className="flex gap-2 mb-6">
+      <form
+        onSubmit={handleAddTask}
+        className="bg-white p-3 rounded shadow-md w-[280px] box-border mb-6"
+      >
         <input
-          className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          value={newTitle}
-          onChange={e => setNewTitle(e.target.value)}
-          placeholder="Nova tarefa"
+          type="text"
+          placeholder="Título"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-2 py-1 border rounded mb-2 text-xs box-border"
+        />
+        <input
+          type="text"
+          placeholder="Descrição"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full px-2 py-1 border rounded mb-4 text-xs box-border"
         />
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-          onClick={addTask}
+          type="submit"
+          className="w-full px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs box-border"
         >
           Adicionar
         </button>
-      </div>
+      </form>
 
-      <ul className="space-y-3">
-        {tasks.map(task => (
+      <ul className="w-[280px] space-y-2 list-none">
+        {tasks.map((task) => (
           <li
             key={task.id}
-            className="flex justify-between items-center border-b pb-2"
+            className="bg-white p-3 rounded shadow border text-sm"
           >
-            <span
-              onClick={() => toggleDone(task)}
-              className={`cursor-pointer ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}
-            >
-              {task.title}
-            </span>
-            <button
-              onClick={() => deleteTask(task.id)}
-              className="text-red-500 hover:text-red-700 transition"
-            >
-              🗑️
-            </button>
+            <h3 className="font-semibold">{task.title}</h3>
+            <p>{task.description}</p>
           </li>
         ))}
       </ul>
     </div>
-  </div>
-)
+  );
 }

@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Register from './pages/register'
 import Login from './pages/login'
-import Tasks from './pages/task'
+import Tasks from './pages/Tasks'
 import ProtectedRoute from './components/protectedroute'
 
 export default function App() {

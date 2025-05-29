@@ -25,6 +25,9 @@ npm run dev
     • Login com JWT
     • Tela protegida com dashboard de tarefas
     • Integração total com a API
+    • Carga de arquivos para preenchimento das tarefas por planilha
+        Modelo planilha
+        tarefa;descrição
 📦 Deploy
 Recomendado: Vercel
 yaml

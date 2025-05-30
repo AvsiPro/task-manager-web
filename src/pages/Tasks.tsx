@@ -14,14 +14,24 @@ interface Task {
   description: string;
 }
 
+interface Tabela {
+  nomeArquivo: string;
+  dados: string[][]; // Array de arrays de strings para representar linhas e colunas
+}
+
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [activePage, setActivePage] = useState<"tarefas" | "configuracoes">("tarefas");
+  const [activePage, setActivePage] = useState<"tarefas" | "configuracoes" | "tabelas">("tarefas");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  const [availableFiles, setAvailableFiles] = useState<string[]>([]);
+  const [selectedTableName, setSelectedTableName] = useState<string | null>(null);
+  const [displayedTable, setDisplayedTable] = useState<Tabela | null>(null);
 
+  // Busca as tarefas
   const fetchTasks = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -36,9 +46,61 @@ export default function Tasks() {
     }
   };
 
+  // Busca os nomes dos arquivos CSV disponíveis
+  const fetchAvailableFiles = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const response = await axios.get("http://localhost:3000/tabelas/files", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log("Arquivos disponíveis:", response.data);
+      setAvailableFiles(response.data);
+      if (response.data.length > 0 && !selectedTableName) {
+        setSelectedTableName(response.data[0]);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar arquivos disponíveis", error);
+      setAvailableFiles([]);
+    }
+  };
+
+  // Busca UMA tabela específica pelo nome do arquivo
+  const fetchSpecificTable = async (fileName: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const response = await axios.get(`http://localhost:3000/tabelas/${fileName}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log(`Dados da tabela '${fileName}':`, response.data);
+      setDisplayedTable(response.data);
+    } catch (error) {
+      console.error(`Erro ao buscar tabela '${fileName}'`, error);
+      setDisplayedTable(null);
+    }
+  };
+
   useEffect(() => {
     fetchTasks();
   }, []);
+
+  useEffect(() => {
+    if (activePage === "tabelas") {
+      fetchAvailableFiles();
+    }
+  }, [activePage]);
+
+  useEffect(() => {
+    if (activePage === "tabelas" && selectedTableName) {
+      fetchSpecificTable(selectedTableName);
+    } else {
+        setDisplayedTable(null);
+    }
+  }, [activePage, selectedTableName]);
+
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +145,7 @@ export default function Tasks() {
     formData.append("file", selectedFile);
 
     try {
-      const response = await axios.post("http://localhost:3000/tasks/upload", formData, {
+      await axios.post("http://localhost:3000/tasks/upload", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
@@ -91,15 +153,19 @@ export default function Tasks() {
       });
       alert("Arquivo enviado com sucesso!");
 
-      // 👇 Isso vai atualizar a tela com as novas tasks
       fetchTasks();
+      
+      if (activePage === "tabelas") {
+        await fetchAvailableFiles();
+        setSelectedTableName(selectedFile.name); 
+      }
 
       setSelectedFile(null);
     } catch (error) {
       console.error("Erro ao enviar arquivo", error);
       alert("Falha no envio do arquivo.");
     }
-};
+  };
 
   return (
     <div className="flex min-h-screen">
@@ -143,6 +209,17 @@ export default function Tasks() {
               </button>
             </li>
             <li>
+              <button
+                onClick={() => setActivePage("tabelas")}
+                className={`flex items-center w-full px-3 py-2 rounded-md transition ${
+                  activePage === "tabelas" ? "bg-gray-800" : "hover:bg-gray-800"
+                }`}
+              >
+                <ListTodo size={18} className="mr-3" />
+                {!isCollapsed && <span className="text-sm">Tabelas</span>}
+              </button>
+            </li>
+            <li>
               <button className="flex items-center w-full px-3 py-2 hover:bg-gray-800 rounded-md transition">
                 <LogOut size={18} className="mr-3" />
                 {!isCollapsed && <span className="text-sm">Sair</span>}
@@ -156,8 +233,10 @@ export default function Tasks() {
       </aside>
 
       {/* Conteúdo principal */}
-      <main className="flex-1 bg-gray-100 p-6 flex flex-col items-center">
-        {activePage === "tarefas" ? (
+      {/* ALTERAÇÃO 1: Fundo azul clarinho */}
+      <main className="flex-1 bg-blue-50 p-6 flex flex-col items-center w-full"> 
+        {/* Página Tarefas */}
+        {activePage === "tarefas" && (
           <>
             <h1 className="text-xl font-semibold mb-4">Minhas Tarefas</h1>
 
@@ -208,7 +287,10 @@ export default function Tasks() {
               ))}
             </ul>
           </>
-        ) : (
+        )}
+
+        {/* Página Configurações */}
+        {activePage === "configuracoes" && (
           <>
             <h1 className="text-xl font-semibold mb-6">Configurações</h1>
             <div className="bg-white p-4 rounded shadow-md w-[280px] flex flex-col items-center">
@@ -230,6 +312,98 @@ export default function Tasks() {
                 Enviar
               </button>
             </div>
+          </>
+        )}
+
+        {/* Página Tabelas */}
+        {activePage === "tabelas" && (
+          <>
+            <h1 className="text-xl font-semibold mb-4">Visualizar Tabela CSV</h1>
+            
+            {/* Seletor de Arquivos */}
+            <div className="mb-4 max-w-md"> {/* max-w-md para limitar a largura */}
+                <label htmlFor="csv-select" className="block text-sm font-medium text-gray-700 mb-1">
+                    Escolha um arquivo CSV para visualizar:
+                </label>
+                <select
+                    id="csv-select"
+                    value={selectedTableName || ""}
+                    onChange={(e) => setSelectedTableName(e.target.value)}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
+                >
+                    <option value="" disabled>Selecione um arquivo...</option>
+                    {availableFiles.length === 0 ? (
+                        <option disabled>Nenhum arquivo disponível</option>
+                    ) : (
+                        availableFiles.map((fileName) => (
+                            <option key={fileName} value={fileName}>
+                                {fileName}
+                            </option>
+                        ))
+                    )}
+                </select>
+            </div>
+
+            {/* Exibição da Tabela Selecionada */}
+            {selectedTableName && displayedTable ? (
+                <div className="w-full max-w-2xl space-y-8"> 
+                    <div className="bg-white p-4 rounded-lg shadow">
+                      <h2 className="font-bold mb-3">{displayedTable.nomeArquivo}</h2>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full border-collapse">
+                          <thead>
+                            <tr>
+                              {displayedTable.dados[0]?.[0]?.includes(';') ? 
+                                displayedTable.dados[0][0].split(';').map((header, index) => (
+                                  <th 
+                                    key={index}
+                                    className="border px-4 py-2 bg-gray-100 text-left"
+                                  >
+                                    {header}
+                                  </th>
+                                )) :
+                                displayedTable.dados[0]?.map((header, index) => (
+                                  <th 
+                                    key={index}
+                                    className="border px-4 py-2 bg-gray-100 text-left"
+                                  >
+                                    {header}
+                                  </th>
+                                ))
+                              }
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {displayedTable.dados.slice(1).map((row, rowIndex) => (
+                              <tr key={rowIndex}>
+                                {row[0]?.includes(';') ? 
+                                  row[0].split(';').map((cell, cellIndex) => (
+                                    <td 
+                                      key={cellIndex}
+                                      className="border px-4 py-2"
+                                    >
+                                      {cell}
+                                    </td>
+                                  )) :
+                                  row.map((cell, cellIndex) => (
+                                    <td 
+                                      key={cellIndex}
+                                      className="border px-4 py-2"
+                                    >
+                                      {cell}
+                                    </td>
+                                  ))
+                                }
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                </div>
+            ) : (
+              <p>{availableFiles.length === 0 ? "Envie um arquivo CSV na aba 'Configurações' para começar." : "Selecione um arquivo CSV para visualizar."}</p>
+            )}
           </>
         )}
       </main>

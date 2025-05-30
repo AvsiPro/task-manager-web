@@ -3,6 +3,7 @@ import Register from './pages/register'
 import Login from './pages/login'
 import Tasks from './pages/Tasks'
 import ProtectedRoute from './components/protectedroute'
+import Tables from './pages/Tables';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Tasks />
         </ProtectedRoute>
       } />
+      <Route path="/tables" element={<Tables />} />
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
   )
